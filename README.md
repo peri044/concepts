@@ -8,5 +8,9 @@ This repo is inspired from https://magazine.sebastianraschka.com/p/understanding
 * Causal attention (attention.py) - also known as masked multi-headed attention
 
 
+Resources:
+
+* https://github.com/ELS-RD/kernl/tree/main/tutorial - amazing resources on online softmax, flash attention
+* Flash attention : https://courses.cs.washington.edu/courses/cse599m/23sp/notes/flashattn.pdf
 
 

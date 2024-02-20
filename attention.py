@@ -69,7 +69,7 @@ class CausalAttention(nn.Module):
          
         keys_transpose = keys.transpose(2, 1) # 1 x d_kq x num_tokens
         # unnormalized attention weights
-        attn_scores = torch.matmul(queries, keys_transpose)  # dot product of queries and keys 
+        attn_scores = torch.matmul(queries, keys_transpose)  # 1 x num_tokens x num_tokens
         block_size = attn_scores.shape[1]
         mask = torch.triu(torch.ones(block_size, block_size), diagonal=1).cuda()
         masked = attn_scores.masked_fill(mask.bool(), -torch.inf)
