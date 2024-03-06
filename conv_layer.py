@@ -2,6 +2,10 @@ import numpy as np
 import torch 
 import torch.nn.functional as F
 
+def dropout(input, prob):
+    mask = (torch.rand(input.size()) < prob) / prob
+    return input * mask
+
 def conv(input, filter, padding=1, stride=1):
     # Get all tensor sizes
     N, C, H, W = input.size()
