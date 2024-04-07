@@ -1,5 +1,8 @@
+
 import torch 
 import torch.nn as nn
+
+__all__ = ["SelfAttention", "CausalAttention", "MultiHeadAttentionWrapper"]
 
 class SelfAttention(nn.Module):
     def __init__(self, d_in, d_kq, d_v):
@@ -34,25 +37,8 @@ input_seq = torch.randn((1, num_tokens, d_in)).cuda()
 context_output = self_att(input_seq) # Output shape = 1 x num_tokens x d_v
 print("Self attention output: ", context_output.shape)
 
-class MultiHeadAttention(nn.Module):
-    def __init__(self, d_in, d_kq, d_v, num_heads):
-        super().__init__()
-        self.heads = nn.ModuleList([SelfAttention(d_in, d_kq, d_v).eval().cuda() 
-                                    for _ in range(num_heads)])
-        
-    def forward(self, x):
-        # concatenate across d_v dimension
-        head_outputs = [head(x) for head in self.heads]
-        return torch.cat(head_outputs, dim=-1) 
-
-num_heads = 32
-mha = MultiHeadAttention(d_in, d_kq, d_v, num_heads)
-mha_output = mha(input_seq)
-# Output shape of mha = 1 x num_tokens x (num_heads*d_v)
-print("Multi head attention output: ", mha_output.shape, "num_heads: ", num_heads) 
-
 class CausalAttention(nn.Module):
-    def __init__(self, d_in, d_kq, d_v):
+    def __init__(self, d_in, d_kq, d_v, dropout):
         super().__init__()
         self.d_kq = d_kq
         # d_in is the input embedding size of each token
@@ -61,6 +47,7 @@ class CausalAttention(nn.Module):
         self.W_query = nn.Parameter(torch.rand(d_in, d_kq))
         self.W_key   = nn.Parameter(torch.rand(d_in, d_kq))
         self.W_value = nn.Parameter(torch.rand(d_in, d_v))
+        self.dropout = nn.Dropout(dropout)
     
     def forward(self, x):
         keys = torch.matmul(x, self.W_key) # 1 x num_tokens x d_kq
@@ -76,13 +63,28 @@ class CausalAttention(nn.Module):
         attn_weights = torch.softmax(
             masked / self.d_kq**0.5, dim=-1 # scale the dot product and apply softmax
         ) # shape is 1 x num_tokens x num_tokens
-
+        # Apply dropout 
+        attn_weights = self.dropout(attn_weights)
         context_vec = torch.matmul(attn_weights, values) # 1 x num_tokens x d_v
         return context_vec
 
-num_tokens = 6; d_in = 4; d_kq = 8; d_v = 8
-self_att = CausalAttention(d_in, d_kq, d_v).eval().cuda()
+num_tokens = 6; d_in = 4; d_kq = 8; d_v = 8; dropout=0.2
+self_att = CausalAttention(d_in, d_kq, d_v, dropout).eval().cuda()
 
 input_seq = torch.randn((1, num_tokens, d_in)).cuda()
 context_output = self_att(input_seq) # Output shape = 1 x num_tokens x d_v
 print("Causal attention output: ", context_output.shape)
+
+class MultiHeadAttentionWrapper(nn.Module):
+    def __init__(self, d_in, d_kq, d_v, dropout, num_heads):
+        super().__init__()
+        self.heads = nn.ModuleList([CausalAttention(d_in, d_kq, d_v, dropout).eval().cuda() for _ in range(num_heads)])
+    
+    def forward(self, x):
+        return torch.cat([head(x) for head in self.heads], dim=-1)
+    
+num_heads = 32
+mha = MultiHeadAttentionWrapper(d_in, d_kq, d_v, dropout, num_heads)
+mha_output = mha(input_seq)
+# Output shape of mha = 1 x num_tokens x (num_heads*d_v)
+print("MHA wrapper output: ", mha_output.shape, "num_heads: ", num_heads)
