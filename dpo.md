@@ -36,6 +36,7 @@ Code reference: <a href="https://github.com/NVIDIA/NeMo-Aligner/blob/9db62d6d8da
 1) https://magazine.sebastianraschka.com/p/tips-for-llm-pretraining-and-evaluating-rms
 2) https://github.com/NVIDIA/NeMo-Aligner/blob/9db62d6d8daf5046825f9dbb38a13b35af881515/nemo_aligner/models/nlp/gpt/megatron_gpt_dpo_model.py
 3) https://docs.nvidia.com/nemo-framework/user-guide/latest/modelalignment/dpo.html
+4) RLHF in detail code explanation: https://gist.github.com/JoaoLages/c6f2dfd13d2484aa8bb0b2d567fbf093
 
 
 
