@@ -1,5 +1,4 @@
 # attention
-Understanding attention in LLMs
 
 This repo is inspired from https://magazine.sebastianraschka.com/p/understanding-and-coding-self-attention and is mostly for self learning the following concepts in detail and with code
 
@@ -33,19 +32,44 @@ python multi_head_attention.py --efficient_mha
 * --efficient_mha : Efficient MHA (which uses torch.nn.scaled_dot_product_attention)
 
 
-On NVIDIA RTX 3080Ti, here's the performance results when you run `python multi_head_attention.py`
+On NVIDIA RTX 3080Ti, here's the results when you run `python multi_head_attention.py`
 
-```
+```py
+# Self attention
+num_tokens: 6, input d_in: 4, head_dim: 8
+Input sequence shape:  torch.Size([1, 6, 4])
 Self attention output:  torch.Size([1, 6, 8])
+Self attention Average time:  0.23223400115966797  ms
+
+# Causal attention
+num_tokens: 6, input d_in: 4, head_dim: 8, dropout: 0.2
+Input sequence shape:  torch.Size([1, 6, 4])
 Causal attention output:  torch.Size([1, 6, 8])
-MHA wrapper output:  torch.Size([1, 6, 256]) num_heads:  32
-Efficient MHA output:  torch.Size([1, 6, 256]) num_heads:  32
-MHA Wrapper Average time:  11.278448104858398  ms
-MHA Efficient Average time:  0.160675048828125  ms
+Causal attention Average time:  0.38367748260498047  ms
+
+# MHA Wrapper
+num_tokens: 6, input d_in: 4, d_kq: 256, num_heads: 32, dropout: 0.2
+Input sequence shape:  torch.Size([1, 6, 4])
+MHA wrapper output:  torch.Size([1, 6, 256])
+MultiHeadAttention Wrapper Average time:  11.990056037902832  ms
+
+# Efficient MHA
+num_tokens: 6, input d_in: 4, d_kq: 256, num_heads: 32, dropout: 0.2
+Input sequence shape:  torch.Size([1, 6, 4])
+Efficient MHA output:  torch.Size([1, 6, 256])
+Efficient MHA Average time:  0.16221046447753906  ms
+
+# GroupedQueryAttention
+num_tokens: 6, input d_in: 4, d_kq: 256, num_heads: 32, dropout: 0.2
+Input sequence shape:  torch.Size([1, 6, 4])
+Grouped query attention output:  torch.Size([1, 6, 256])
+GroupedQuery Attention Average time:  0.6246852874755859  ms
 ```
 
 ## Resources:
 
+* https://magazine.sebastianraschka.com/p/understanding-and-coding-self-attention
+* https://github.com/huggingface/transformers/blob/main/src/transformers/models/llama/modeling_llama.py
 * https://github.com/ELS-RD/kernl/tree/main/tutorial - amazing resources on online softmax, flash attention
 * Flash attention : https://courses.cs.washington.edu/courses/cse599m/23sp/notes/flashattn.pdf
 
