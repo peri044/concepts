@@ -2,3 +2,5 @@ torch
 tiktoken
 tensorflow
 matplotlib
+openai>=1.30.3
+tqdm>=4.65.0
