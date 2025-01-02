@@ -109,6 +109,57 @@ class GroupedQueryAttention(nn.Module):
         context_vec = context_vec.transpose(1, 2).contiguous()
         context_vec = context_vec.reshape(batch_size, num_tokens, self.d_kq)
         return context_vec
+    
+class SlidingWindowCausalAttention(nn.Module):
+    def __init__(self, d_in, d_kq, num_heads, window_size, dropout, qkv_bias=False):
+        super().__init__()
+        assert d_kq % num_heads == 0, "d_kq is indivisible by num_heads"
+
+        self.num_heads = num_heads
+        self.d_in = d_in
+        self.d_kq = d_kq
+        self.window_size = window_size
+        self.head_dim = d_kq // num_heads
+        self.qkv = nn.Linear(d_in, 3*self.d_kq, bias=qkv_bias)
+        self.dropout = dropout
+
+    def create_sliding_window_causal_mask(self, seq_len):
+        # Initialize mask with very small values (close to -inf)
+        mask = torch.full((seq_len, seq_len), float('-inf')).cuda()
+
+        for i in range(seq_len):
+            start = max(0, i - self.window_size)
+            end = i + 1 # Causal attention only attends to past tokens
+            mask[i, start:end] = 0  # Allow attention within the window
+
+        return mask
+    
+    def forward(self, x):
+        batch_size, num_tokens, embed_dim = x.shape
+        attn_mask = self.create_sliding_window_causal_mask(num_tokens)
+
+        assert embed_dim == self.d_in, "Input embedding size should match with d_in"
+
+        # (b, num_tokens, embed_dim) --> (b, num_tokens, 3 * self.d_kq)
+        qkv = self.qkv(x)
+
+        # (b, num_tokens, 3 * embed_dim) --> (b, num_tokens, 3, num_heads, head_dim)
+        qkv = qkv.reshape(batch_size, num_tokens, 3, self.num_heads, self.head_dim)
+
+        # (b, num_tokens, 3, num_heads, head_dim) --> (3, b, num_heads, num_tokens, head_dim)
+        qkv = qkv.permute(2, 0, 3, 1, 4)
+
+        # (3, b, num_heads, num_tokens, head_dim) -> 3 times (b, num_heads, num_tokens, head_dim)
+        queries, keys, values = qkv.unbind(0)
+
+        use_dropout = 0. if not self.training else self.dropout
+        context_vec = nn.functional.scaled_dot_product_attention(
+            queries, keys, values, attn_mask=attn_mask, dropout_p=use_dropout, is_causal=False)
+
+        # Combine heads, where self.d_kq = self.num_heads * self.head_dim
+        context_vec = context_vec.transpose(1, 2).contiguous().view(batch_size, num_tokens, self.d_kq)
+        
+        return context_vec
 
 def main(args):
     if args.efficient_mha:
@@ -149,8 +200,18 @@ def main(args):
         # Output shape of mha = 1 x num_tokens x (num_heads*d_v)
         print("MHA wrapper output: ", mha(input_seq).shape)
         measure_time(mha, input_seq, "MultiHeadAttention Wrapper")
+    elif args.swca:
+        num_tokens = 6; d_in = 4; d_kq = 256; window_size = 3; dropout=0.2; num_heads = 32
+        head_dim = d_kq // num_heads
+        mha = SlidingWindowCausalAttention(d_in, d_kq, num_heads, window_size, dropout).eval().cuda()
+        input_seq = torch.randn((1, num_tokens, d_in)).cuda()
+        print(f"num_tokens: {num_tokens}, input d_in: {d_in}, d_kq: {d_kq}, num_heads: {num_heads}, window_size: {window_size}, dropout: {dropout}")
+        print("Input sequence shape: ", input_seq.shape)
+        # Output shape of swa = 1 x num_tokens x (num_heads*d_v)
+        print("SlidingWindowCausalAttention output: ", mha(input_seq).shape)
+        measure_time(mha, input_seq, "SlidingWindowCausalAttention")
     else:
-        raise ValueError("Invalid attention flag provided. Options include --efficient_mha, --gqa")
+        raise ValueError("Invalid attention flag provided. Options include --efficient_mha, --gqa, --mha, --swca")
     
 
 if __name__ == "__main__":
@@ -171,6 +232,11 @@ if __name__ == "__main__":
         "--mha",
         action="store_true",
         help="Boolean flag to run MHAWrapper",
+    )
+    arg_parser.add_argument(
+        "--swca",
+        action="store_true",
+        help="Boolean flag to run SlidingWindowCausalAttention",
     )
 
     args = arg_parser.parse_args()
